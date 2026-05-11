@@ -12,7 +12,7 @@ function App() {
   const [loginError, setLoginError] = useState("");
   const [priority, setPriority] = useState("medium");
 
-  const API_BASE = "http://localhost:3000";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
   const apiFetch = (url, options = {}) =>
     fetch(url, {
@@ -28,24 +28,55 @@ function App() {
   };
 
   const PRIORITY_CONFIG = {
-    urgent: { label: "Urgent", color: "red" },
-    high: { label: "High", color: "orange" },
-    medium: { label: "Medium", color: "blue" },
-    low: { label: "Low", color: "gray" },
+    urgent: {
+      label: "Urgent",
+      className: "border-red-200 bg-red-50 text-red-700",
+    },
+    high: {
+      label: "High",
+      className: "border-orange-200 bg-orange-50 text-orange-700",
+    },
+    medium: {
+      label: "Medium",
+      className: "border-blue-200 bg-blue-50 text-blue-700",
+    },
+    low: {
+      label: "Low",
+      className: "border-slate-200 bg-slate-50 text-slate-700",
+    },
   };
 
-  const statusColor = (status) => {
-    switch (status) {
-      case "completed":
-        return "green";
-      case "in_progress":
-        return "blue";
-      case "assigned":
-        return "orange";
-      default:
-        return "gray";
-    }
+  const STATUS_CONFIG = {
+    completed: "border-green-200 bg-green-50 text-green-700",
+    in_progress: "border-blue-200 bg-blue-50 text-blue-700",
+    assigned: "border-orange-200 bg-orange-50 text-orange-700",
+    queued: "border-slate-200 bg-slate-50 text-slate-700",
   };
+
+  const buttonClass = (disabled = false, variant = "secondary") => {
+    const base =
+      "rounded-lg px-4 py-2 text-sm font-semibold transition shadow-sm";
+
+    if (disabled) {
+      return `${base} cursor-not-allowed bg-slate-200 text-slate-400`;
+    }
+
+    if (variant === "primary") {
+      return `${base} bg-slate-900 text-white hover:bg-slate-800`;
+    }
+
+    if (variant === "danger") {
+      return `${base} bg-red-600 text-white hover:bg-red-700`;
+    }
+
+    return `${base} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`;
+  };
+
+  const inputClass =
+    "w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200";
+
+  const selectClass =
+    "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200";
 
   const fetchTasks = useCallback(() => {
     const params = new URLSearchParams();
@@ -66,13 +97,23 @@ function App() {
         console.error(error);
         setTasks([]);
       });
-  }, [statusFilter, sortByPriority]);
+  }, [API_BASE, statusFilter, sortByPriority]);
 
   useEffect(() => {
     if (currentUser) {
       fetchTasks();
     }
   }, [currentUser, fetchTasks]);
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/me`)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((user) => setCurrentUser(user))
+      .catch(() => setCurrentUser(null));
+  }, [API_BASE]);
 
   const visibleTasks =
     onlyMine && currentUser
@@ -95,9 +136,7 @@ function App() {
     })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to create task");
-
         if (res.status === 204) return null;
-
         return res.json();
       })
       .then(() => {
@@ -159,16 +198,6 @@ function App() {
       });
   };
 
-  useEffect(() => {
-    apiFetch(`${API_BASE}/me`)
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then((user) => setCurrentUser(user)) // 👈 THIS IS MISSING
-      .catch(() => setCurrentUser(null));
-  }, []);
-
   const logout = () => {
     apiFetch(`${API_BASE}/logout`, {
       method: "DELETE",
@@ -178,174 +207,184 @@ function App() {
     });
   };
 
-  const getButtonStyle = (disabled) => ({
-    padding: "8px 12px",
-    borderRadius: "6px",
-    border: "1px solid #ccc",
-    cursor: disabled ? "not-allowed" : "pointer",
-    background: disabled ? "#eee" : "white",
-    color: disabled ? "#999" : "#000",
-  });
-
   const createDisabled = !title.trim();
+
+  const totalTasks = tasks.length;
+  const queuedTasks = tasks.filter((task) => task.status === "queued").length;
+  const inProgressTasks = tasks.filter(
+    (task) => task.status === "in_progress"
+  ).length;
+  const completedTasks = tasks.filter(
+    (task) => task.status === "completed"
+  ).length;
 
   if (!currentUser) {
     return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        <h2>Sign In</h2>
+      <div className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-8 shadow-xl">
+          <div className="text-center">
+            <p className="text-sm font-bold uppercase tracking-[0.25em] text-slate-400">
+              Taskflow
+            </p>
+            <h1 className="mt-2 text-3xl font-extrabold text-slate-900">
+              Welcome back
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Sign in to manage tasks and workflow history.
+            </p>
+          </div>
 
-        <form onSubmit={login}>
-          <input
-            type="text"
-            placeholder="Enter your name"
-            value={loginName}
-            onChange={(e) => setLoginName(e.target.value)}
-            style={{
-              padding: "10px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-              marginRight: "10px",
-            }}
-          />
+          <form onSubmit={login} className="mt-8 space-y-4">
+            <input
+              type="text"
+              placeholder="Enter your name"
+              value={loginName}
+              onChange={(e) => setLoginName(e.target.value)}
+              className={inputClass}
+            />
 
-          <input
-            type="password"
-            placeholder="Enter password"
-            value={loginPassword}
-            onChange={(e) => setLoginPassword(e.target.value)}
-            style={{
-              padding: "10px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-              marginRight: "10px",
-            }}
-          />
+            <input
+              type="password"
+              placeholder="Enter password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              className={inputClass}
+            />
 
-          <button
-            type="submit"
-            disabled={!loginName.trim()}
-            style={getButtonStyle(!loginName.trim())}
-          >
-            Sign In
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={!loginName.trim()}
+              className={`w-full ${buttonClass(!loginName.trim(), "primary")}`}
+            >
+              Sign In
+            </button>
+          </form>
 
-        {loginError && (
-          <p style={{ color: "red", marginTop: "12px" }}>{loginError}</p>
-        )}
+          {loginError && (
+            <p className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-center text-sm font-medium text-red-700">
+              {loginError}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f4f6f8",
-        padding: "40px",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-        <h1
-          style={{
-            marginBottom: "20px",
-            textAlign: "center",
-            color: "#000",
-          }}
-        >
-          Taskflow
-        </h1>
+    <div className="min-h-screen bg-slate-100 px-6 py-8 font-sans text-slate-900">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-8 rounded-3xl bg-slate-950 px-6 py-6 text-white shadow-sm md:px-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.25em] text-slate-400">
+                Taskflow
+              </p>
+              <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">
+                Workflow dashboard
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300 md:text-base">
+                Manage task ownership, status transitions, priority, and audit
+                history.
+              </p>
+            </div>
 
-        <p style={{ color: "#555", marginBottom: "12px", textAlign: "center" }}>
-          Manage workflow tasks, transitions, and audit history.
-        </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm">
+                Signed in as{" "}
+                <span className="font-bold text-white">{currentUser.name}</span>
+              </div>
 
-        <p style={{ textAlign: "center", color: "#333" }}>
-          Signed in as <strong>{currentUser.name}</strong>
-        </p>
+              <button
+                onClick={logout}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-200"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </header>
 
-        <div style={{ textAlign: "center", marginBottom: "24px" }}>
-          <button onClick={logout} style={getButtonStyle(false)}>
-            Logout
-          </button>
-        </div>
+        <section className="mb-6 grid gap-4 md:grid-cols-4">
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-500">Total Tasks</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">
+              {totalTasks}
+            </p>
+          </div>
 
-        <form
-          onSubmit={createTask}
-          style={{
-            display: "flex",
-            gap: "10px",
-            marginBottom: "20px",
-            background: "white",
-            padding: "16px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-          }}
-        >
-          <input
-            type="text"
-            placeholder="New task title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: "6px",
-              border: "1px solid #ccc",
-              background: "white",
-              color: "#000",
-            }}
-          />
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-500">Queued</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">
+              {queuedTasks}
+            </p>
+          </div>
 
-        Set priority:{" "}
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-            style={{
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
-                background: "white",
-                color: "#000",
-              }}
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-500">In Progress</p>
+            <p className="mt-2 text-3xl font-bold text-blue-700">
+              {inProgressTasks}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-500">Completed</p>
+            <p className="mt-2 text-3xl font-bold text-green-700">
+              {completedTasks}
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-slate-900">Create task</h2>
+            <p className="text-sm text-slate-500">
+              Add a new workflow item and choose its starting priority.
+            </p>
+          </div>
+
+          <form
+            onSubmit={createTask}
+            className="grid gap-4 md:grid-cols-[1fr_auto_auto]"
           >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-          <button
-            type="submit"
-            disabled={createDisabled}
-            style={getButtonStyle(createDisabled)}
-          >
-            Create
-          </button>
-        </form>
+            <input
+              type="text"
+              placeholder="New task title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={inputClass}
+            />
 
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className={selectClass}
+            >
+              <option value="low">Low priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="high">High priority</option>
+              <option value="urgent">Urgent priority</option>
+            </select>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "24px",
-          }}
-        >
-          <label>
-            Filter by status:{" "}
+            <button
+              type="submit"
+              disabled={createDisabled}
+              className={buttonClass(createDisabled, "primary")}
+            >
+              Create
+            </button>
+          </form>
+        </section>
+
+        <section className="mb-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-sm font-bold text-slate-600">
+              Filter by status
+            </label>
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
-                background: "white",
-                color: "#000",
-              }}
+              className={selectClass}
             >
               <option value="">All</option>
               <option value="queued">{STATUS_LABELS.queued}</option>
@@ -353,165 +392,174 @@ function App() {
               <option value="in_progress">{STATUS_LABELS.in_progress}</option>
               <option value="completed">{STATUS_LABELS.completed}</option>
             </select>
-          </label>
 
-          <button
-            onClick={() => setSortByPriority((prev) => !prev)}
-            style={getButtonStyle(false)}
-          >
-            {sortByPriority ? "Disable Priority Sort" : "Sort by Priority"}
-          </button>
+            <button
+              onClick={() => setSortByPriority((prev) => !prev)}
+              className={buttonClass(false)}
+            >
+              {sortByPriority ? "Priority Sort On" : "Sort by Priority"}
+            </button>
+          </div>
 
-          <label>
-            My tasks{" "}
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
             <input
               type="checkbox"
               checked={onlyMine}
               onChange={(e) => setOnlyMine(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
             />
+            My tasks only
           </label>
-        </div>
+        </section>
 
-        {visibleTasks.map((task) => {
-          const priorityKey = task.priority?.toLowerCase();
-          const priority = PRIORITY_CONFIG[priorityKey];
+        <section className="grid gap-5">
+          {visibleTasks.map((task) => {
+            const priorityKey = task.priority?.toLowerCase();
+            const priorityInfo = PRIORITY_CONFIG[priorityKey];
 
-          const assignDisabled =
-            task.status !== "queued" || task.assigned_to_id;
+            const assignDisabled =
+              task.status !== "queued" || task.assigned_to_id;
 
-          const startDisabled =
-            task.status !== "assigned" ||
-            task.assigned_to_id !== currentUser.id;
+            const startDisabled =
+              task.status !== "assigned" ||
+              task.assigned_to_id !== currentUser.id;
 
-          const completeDisabled =
-            task.status !== "in_progress" ||
-            task.assigned_to_id !== currentUser.id;
+            const completeDisabled =
+              task.status !== "in_progress" ||
+              task.assigned_to_id !== currentUser.id;
 
-          return (
-            <div
-              key={task.id}
-              style={{
-                background: "white",
-                border: "1px solid #ddd",
-                borderRadius: "10px",
-                marginBottom: "16px",
-                padding: "18px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-              }}
-            >
-              <h3
-                style={{
-                  marginTop: 0,
-                  textAlign: "center",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                }}
+            return (
+              <article
+                key={task.id}
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                {task.title}
-              </h3>
+                <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-extrabold uppercase tracking-wide text-slate-900">
+                      {task.title}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Assigned to{" "}
+                      <span className="font-semibold text-slate-700">
+                        {task.assigned_to_name || "Unassigned"}
+                      </span>
+                    </p>
+                  </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  gap: "10px",
-                  marginBottom: "18px",
-                }}
-              >
-                <button
-                  onClick={() => assignTask(task.id)}
-                  disabled={assignDisabled}
-                  style={getButtonStyle(assignDisabled)}
-                >
-                  {task.assigned_to_id
-                    ? task.assigned_to_id === currentUser.id
-                      ? "Assigned to you"
-                      : `Assigned to ${task.assigned_to_name}`
-                    : `Assign to ${currentUser.name}`}
-                </button>
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                        STATUS_CONFIG[task.status] ||
+                        "border-slate-200 bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      {STATUS_LABELS[task.status] || task.status}
+                    </span>
 
-                <button
-                  onClick={() => transitionTask(task.id, "in_progress")}
-                  disabled={startDisabled}
-                  style={getButtonStyle(startDisabled)}
-                >
-                  Start
-                </button>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                        priorityInfo?.className ||
+                        "border-slate-200 bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      {priorityInfo?.label || task.priority}
+                    </span>
+                  </div>
+                </div>
 
-                <button
-                  onClick={() => transitionTask(task.id, "completed")}
-                  disabled={completeDisabled}
-                  style={getButtonStyle(completeDisabled)}
-                >
-                  Complete
-                </button>
-
-                <button onClick={() => deleteTask(task.id)}>Delete</button>
-              </div>
-
-              <div
-                style={{
-                  maxWidth: "400px",
-                  margin: "0 auto",
-                  textAlign: "left",
-                }}
-              >
-                <p style={{ margin: "6px 0" }}>
-                  <strong>Assigned To:</strong>{" "}
-                  <span>{task.assigned_to_name || "Unassigned"}</span>
-                </p>
-
-                <p style={{ margin: "6px 0" }}>
-                  <strong>Status:</strong>{" "}
-                  <strong style={{ color: statusColor(task.status) }}>
-                    {STATUS_LABELS[task.status] || task.status}
-                  </strong>
-                </p>
-
-                <p style={{ margin: "6px 0" }}>
-                  <strong>Priority:</strong>{" "}
-                  <strong style={{ color: priority?.color || "gray" }}>
-                    {priority?.label || task.priority}
-                  </strong>
-                </p>
-
-                <div style={{ marginTop: "12px" }}>
-                  <h4
-                    style={{
-                      marginBottom: "8px",
-                      textAlign: "left",
-                      fontWeight: "bold",
-                    }}
+                <div className="mb-5 flex flex-wrap gap-3">
+                  <button
+                    onClick={() => assignTask(task.id)}
+                    disabled={assignDisabled}
+                    className={buttonClass(assignDisabled)}
                   >
+                    {task.assigned_to_id
+                      ? task.assigned_to_id === currentUser.id
+                        ? "Assigned to you"
+                        : `Assigned to ${task.assigned_to_name}`
+                      : `Assign to ${currentUser.name}`}
+                  </button>
+
+                  <button
+                    onClick={() => transitionTask(task.id, "in_progress")}
+                    disabled={startDisabled}
+                    className={buttonClass(startDisabled)}
+                  >
+                    Start
+                  </button>
+
+                  <button
+                    onClick={() => transitionTask(task.id, "completed")}
+                    disabled={completeDisabled}
+                    className={buttonClass(completeDisabled)}
+                  >
+                    Complete
+                  </button>
+
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
                     Audit History
-                  </h4>
+                  </h3>
 
                   {task.task_events?.length > 0 ? (
-                    <ul
-                      style={{
-                        listStyle: "none",
-                        paddingLeft: 0,
-                        margin: 0,
-                        textAlign: "left",
-                      }}
-                    >
+                    <ul className="space-y-2">
                       {task.task_events.map((event) => (
-                        <li key={event.id} style={{ padding: "4px 0" }}>
-                          {event.event_type}: {event.from_value || "none"} →{" "}
-                          {event.to_value}
+                        <li
+                          key={event.id}
+                          className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700 shadow-sm"
+                        >
+                          {event.event_type === "assigned" ? (
+                        <>
+                          Assigned to{" "}
+                          <span className="font-semibold">
+                            {event.to_value}
+                          </span>
+                        </>
+                      ) : event.event_type === "status_changed" ? (
+                        <>
+                          Status changed from{" "}
+                          <span className="font-semibold">
+                            {STATUS_LABELS[event.from_value] || event.from_value || "None"}
+                          </span>{" "}
+                          to{" "}
+                          <span className="font-semibold">
+                            {STATUS_LABELS[event.to_value] || event.to_value}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold">{event.event_type}</span>:{" "}
+                          {event.from_value || "none"} → {event.to_value}
+                        </>
+                      )}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ color: "#777", textAlign: "left" }}>
-                      No events yet
-                    </p>
+                    <p className="text-sm text-slate-500">No events yet</p>
                   )}
                 </div>
-              </div>
+              </article>
+            );
+          })}
+
+          {visibleTasks.length === 0 && (
+            <div className="rounded-2xl bg-white p-10 text-center shadow-sm">
+              <p className="font-semibold text-slate-700">No tasks found.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Create one above or change your filters.
+              </p>
             </div>
-          );
-        })}
+          )}
+        </section>
       </div>
     </div>
   );
