@@ -13,6 +13,7 @@ function App() {
   const [priority, setPriority] = useState("medium");
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  console.log("API BASE:", API_BASE);
 
   const apiFetch = (url, options = {}) =>
     fetch(url, {
